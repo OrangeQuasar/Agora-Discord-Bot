@@ -63,7 +63,7 @@ TOKEN = config["token"]
 DEFAULT_CHARACTER = config["default_character_name"]
 CHARACTER_MAP = config["character_map"]
 AUDIOPLAY = config["audioplay"]
-DEVELOPER_MODE = config.get("developper_mode_**DO_NOT_CHANGE_HERE**", False)
+DEVELOPER_MODE = config.get("developer_mode_**DO_NOT_CHANGE_HERE**", False)
 VOICEVOX_URL = config["VOICEVOX_URL"]
 # メンテナンスモードの設定読み込み (デフォルトはFalse)
 MAINTENANCE_MODE = config.get("maintenance_mode", False)
@@ -375,12 +375,26 @@ async def audioplay(ctx, state: str):
         logging.error(f"Audioplay config error: {e}")
 
 @bot.command()
-async def set(ctx, character_name: str):
+async def set(ctx, target_name: str, character_name: str):
     global user_character
+
+    # 1. キャラクター名の存在確認
     if character_name not in CHARACTER_MAP:
-        await ctx.send(f"キャラクター名「{character_name}」は存在しません。")
+        await ctx.send(f"キャラクター名「{character_name}」は存在しません。`!char` で一覧を確認してください。")
         return
 
+    # 2. ユーザー（メンバー）の検索
+    # サーバー内のメンバーから、表示名(display_name) または ユーザー名(name) が一致する人を探す
+    target_member = discord.utils.find(
+        lambda m: m.display_name == target_name or m.name == target_name, 
+        ctx.guild.members
+    )
+
+    if not target_member:
+        await ctx.send(f"ユーザー「{target_name}」が見つかりませんでした。\n※名前にスペースが含まれる場合は `\"名前\"` のように引用符で囲ってください。")
+        return
+
+    # 3. 設定の保存
     try:
         if USER_CHAR_PATH.exists():
             with open(USER_CHAR_PATH, "r", encoding="utf-8") as f:
@@ -388,12 +402,26 @@ async def set(ctx, character_name: str):
         else:
             user_character = {}
 
-        user_character[str(ctx.author.id)] = CHARACTER_MAP[character_name]
+        # 見つかったメンバーのIDをキーにして保存
+        user_character[str(target_member.id)] = CHARACTER_MAP[character_name]
+        
         with open(USER_CHAR_PATH, "w", encoding="utf-8") as f:
             json.dump(user_character, f, ensure_ascii=False, indent=4)
-        await ctx.send(f"キャラクターを「{character_name}」に設定しました。")
+        
+        await ctx.send(f"{target_member.display_name} さんのキャラクターを「{character_name}」に設定しました。")
+        logging.info(f"Set character for {target_member.display_name}: {character_name}")
+
     except Exception as e:
+        await ctx.send("設定の保存に失敗しました。")
         logging.error(f"Set character error: {e}")
+
+@bot.command()
+async def char(ctx):
+    # キャラクター名のリストを作成
+    char_list = "\n".join([f"・{name}" for name in CHARACTER_MAP.keys()])
+    
+    embed = discord.Embed(title="使用可能なキャラクター一覧", description=char_list, color=0x00ff00)
+    await ctx.send(embed=embed)
 
 @bot.command()
 async def add(ctx, word: str, pronunciation: str):
@@ -413,7 +441,7 @@ async def add(ctx, word: str, pronunciation: str):
             json.dump(data, f, ensure_ascii=False, indent=4)
         await ctx.send(f"`{word}` を `{pronunciation}`として登録しました。")
     except Exception as e:
-        await ctx.send("ズモモエラー！！")
+        await ctx.send("ズモモエラー！！辞書エラーが出たぞ！人間！対応しろ！")
         logging.error(f"Add dictionary error: {e}")
 
 @bot.command()
@@ -430,7 +458,7 @@ async def delete(ctx, word: str):
             json.dump(data, f, ensure_ascii=False, indent=4)
         await ctx.send(f"`{word}` を辞書から削除しました。")
     except Exception as e:
-        await ctx.send("ズモモエラー！！")
+        await ctx.send("ズモモエラー！！辞書エラーが出たぞ！人間！対応しろ！")
         logging.error(f"Delete dictionary error: {e}")
 
 @bot.command()
@@ -460,38 +488,38 @@ async def save(ctx, param: str, url: str):
 
     await ctx.send(f"ダウンロードを開始しました...")
 
-    try:
-        # ダウンロード実行
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-        
-        saved_path = f"{target_dir}/{filename}.{ext}"
-
-        # Nginxが読み取れるようにファイルのパーミッションを変更 (644)
+    async with ctx.typing():
         try:
-            os.chmod(saved_path, 0o644)
-        except Exception as e:
-            logging.warning(f"Permission change failed: {e}")
-        
-        if DEVELOPER_MODE:
-            # .env から共有用URLのベースのみ取得 (例: http://localhost:8080/videos)
-            # 保存先ディレクトリはコード内の target_dir で固定されているため、移動処理は不要です
-            env_url_key = f"SHARE_{param.upper()}_URL"
-            share_url_base = os.getenv(env_url_key)
+            # ダウンロード実行
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+            
+            saved_path = f"{target_dir}/{filename}.{ext}"
 
-            if share_url_base:
-                # URLを結合して表示 (末尾のスラッシュ有無を考慮)
-                share_url = share_url_base.rstrip('/') + f"/{filename}.{ext}"
-                await ctx.send(f"以下のURLからダウンロードできます。\n{share_url}")
+            # Nginxが読み取れるようにファイルのパーミッションを変更 (644)
+            try:
+                os.chmod(saved_path, 0o644)
+            except Exception as e:
+                logging.warning(f"Permission change failed: {e}")
+            
+            if DEVELOPER_MODE:
+                # .env から共有用URLのベースのみ取得
+                env_url_key = f"SHARE_{param.upper()}_URL"
+                share_url_base = os.getenv(env_url_key)
+
+                if share_url_base:
+                    # URLを結合して表示 (末尾のスラッシュ有無を考慮)
+                    share_url = share_url_base.rstrip('/') + f"/{filename}.{ext}"
+                    await ctx.send(f"以下のURLからダウンロードできます。\n{share_url}")
+                else:
+                    logging.warning(f"ENV variable {env_url_key} not found.")
+                    await ctx.send("ダウンロード完了。（公開用URL設定が見つかりませんでした）")
             else:
-                logging.warning(f"ENV variable {env_url_key} not found.")
-                await ctx.send("ダウンロード完了。（公開用URL設定が見つかりませんでした）")
-        else:
-            await ctx.send(f"ダウンロード完了。")
+                await ctx.send(f"ダウンロード完了。サーバー内に保存されました。")
 
-    except Exception as e:
-        await active_text_channel.send("ズモモエラー！！保存エラーが出たぞ！")
-        logging.error(f"Save command error: {e}")
+        except Exception as e:
+            await active_text_channel.send("ズモモエラー！！保存エラーが出たぞ！人間！対応しろ！")
+            logging.error(f"Save command error: {e}")
 
 @bot.command()
 async def play(ctx, url):
@@ -525,15 +553,11 @@ async def play(ctx, url):
 @bot.command()
 async def fool(ctx, state: str):
     global AprilFool
-    if state == "true": AprilFool = True; await ctx.send(":parrot:")
-    elif state == "false": AprilFool = False; await ctx.send("戻りました")
+    if state == "true": AprilFool = True; await ctx.send(":parrot: :thumbsup:")
+    elif state == "false": AprilFool = False; await ctx.send(":angry:")
 
 @bot.command()
 async def help(ctx):
-    # 設定からキャラクター名の一覧を取得して文字列にする
-    # keys()で名前を取り出し、", " で結合します
-    char_list = ", ".join(CHARACTER_MAP.keys())
-
     help_message = f"""
     **使用可能なコマンド一覧**
     
@@ -547,9 +571,9 @@ async def help(ctx):
         true: 再生する
         false: 再生しない
 
-    `!set <キャラクター名>`: あなたのキャラクターを設定
-        **現在使用可能なキャラクター**:
-        {char_list}
+    `!set <ユーザー名> <キャラクター名>`: あなたのキャラクターを設定
+
+    `!char`: 使用可能なキャラクター名の一覧を表示
 
     `!add <単語> <カタカナ読み>`: 辞書に単語の読み方を登録
 

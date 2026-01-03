@@ -1,5 +1,5 @@
 VOICEVOX_URL: http://voicevox:50021
-developper_mode_**DO_NOT_CHANGE_HERE**: false
+developer_mode_**DO_NOT_CHANGE_HERE**: false
 audioplay: true
 character_map:
     ずんだもん: 3

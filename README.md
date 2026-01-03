@@ -1,1 +1,2 @@
-# Agora-Discord-Bot
+現在READMEを作成中です。
+requirements.txtでpipのインストールを行い、docker composeをbuildしてからupで起動します。
