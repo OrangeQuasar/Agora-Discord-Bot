@@ -1,0 +1,11 @@
+*
+!.git
+!.gitignore
+!Dockerfile
+!LICENSE
+!README.md
+!agorabot.py
+!compose.yaml
+!example_*.json
+!example_*.yaml
+!requirements.txt

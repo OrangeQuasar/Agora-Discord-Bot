@@ -1,0 +1,19 @@
+VOICEVOX_URL: http://voicevox:50021
+developper_mode_**DO_NOT_CHANGE_HERE**: false
+audioplay: true
+character_map:
+    ずんだもん: 3
+    もち子さん: 20
+    九州そら: 16
+    冥鳴ひまり: 14
+    剣崎雌雄: 21
+    四国めたん: 2
+    春日部つむぎ: 8
+    波音リツ: 9
+    玄野武宏: 11
+    白上虎太郎: 12
+    雨晴はう: 10
+    青山龍星: 13
+default_character_name: ずんだもん
+token: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+maintenance_mode: false

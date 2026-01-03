@@ -1,0 +1,39 @@
+services:
+  discord-bot:
+    build: .
+    container_name: agora-bot
+    restart: always
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./user_dict.json:/app/user_dict.json
+      - ./user_character.json:/app/user_character.json
+      - ./.env:/app/.env
+      # 保存されたデータを永続化（Webサーバーとも共有）
+      - ./saved_video:/app/saved_video
+      - ./saved_audio:/app/saved_audio
+    depends_on:
+      - voicevox
+      - web
+    tty: true
+
+  voicevox:
+    image: voicevox/voicevox_engine:cpu-ubuntu20.04-latest
+    container_name: voicevox-engine
+    restart: always
+    ports:
+      - "50021:50021"
+    environment:
+      - VV_CPU_NUM_THREADS=4
+
+  web:
+    image: nginx:alpine
+    container_name: agora-web
+    restart: always
+    ports:
+      - "49153:80"  # ホストの8080ポートでアクセス
+    volumes:
+      # Botが保存するディレクトリをNginxの公開ディレクトリにマウント
+      - ./saved_video:/usr/share/nginx/html/videos
+      - ./saved_audio:/usr/share/nginx/html/audio
+      # 設定ファイルをマウント
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
