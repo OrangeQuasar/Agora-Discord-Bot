@@ -92,12 +92,12 @@ class MixingAudioSource(discord.AudioSource):
 
     def read(self):
         FRAME_SIZE = 3840
-        mixed = bytes(FRAME_SIZE)
+        mixed = None
         
         with self.lock:
             active_sources = self.sources[:]
             if not active_sources:
-                return b''
+                return b'\x00' * FRAME_SIZE
 
             for source in active_sources:
                 chunk = source.read()
@@ -108,14 +108,17 @@ class MixingAudioSource(discord.AudioSource):
                     continue
                 
                 if len(chunk) < FRAME_SIZE:
-                    chunk += bytes(FRAME_SIZE - len(chunk))
+                    chunk += b'\x00' * (FRAME_SIZE - len(chunk))
                 
                 try:
-                    mixed = audioop.add(mixed, chunk, 2)
+                    if mixed is None:
+                        mixed = chunk
+                    else:
+                        mixed = audioop.add(mixed, chunk, 2)
                 except Exception:
                     pass
                     
-        return mixed
+        return mixed if mixed is not None else b'\x00' * FRAME_SIZE
 
     def cleanup(self):
         for source in self.sources:
@@ -447,10 +450,14 @@ async def add(ctx, word: str, pronunciation: str):
 @bot.command()
 async def delete(ctx, word: str):
     try:
-        if not DICT_PATH.exists(): return
+        if not DICT_PATH.exists():
+            await ctx.send(f"`{word}` は辞書に存在しません。")
+            return
         with open(DICT_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
-        if word not in data: return
+        if word not in data:
+            await ctx.send(f"`{word}` は辞書に存在しません。")
+            return
         res = requests.delete(f"{VOICEVOX_URL}/user_dict_word/{data[word]}")
         res.raise_for_status()
         del data[word]

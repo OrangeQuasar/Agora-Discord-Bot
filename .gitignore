@@ -6,6 +6,5 @@
 !README.md
 !agorabot.py
 !compose.yaml
-!example_*.json
-!example_*.yaml
+!example_*.*
 !requirements.txt
