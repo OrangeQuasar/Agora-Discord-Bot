@@ -1,0 +1,15 @@
+[project]
+name = "agora-discord-bot"
+version = "0.1.0"
+description = "A Discord bot for text-to-speech using VOICEVOX with multimedia features"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "discord.py",
+    "requests",
+    "PyNaCl",
+    "yt-dlp",
+    "PyYAML",
+    "gTTS",
+    "python-dotenv",
+]

@@ -471,24 +471,52 @@ async def delete(ctx, word: str):
 @bot.command()
 async def save(ctx, param: str, url: str):
     filename = str(uuid.uuid4())
+    # URLドメインに基づくサイト別設定
+    domain = urllib.parse.urlparse(url).netloc.lower()
+
     if param == "video":
         target_dir = VIDEO_DIR
         ext = "mp4"
+        # デフォルトは汎用ベスト動画
         ydl_opts = {
             'quiet': True,
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]',
+            'no_warnings': True,
+            'noplaylist': True,
+            'format': 'bestvideo*+bestaudio/best',
             'outtmpl': f'{target_dir}/{filename}.%(ext)s',
             'merge_output_format': 'mp4',
         }
+        # Twitter/Xはmp4が多いのでそのままmp4にマージ
+        if ('twitter.com' in domain) or ('x.com' in domain):
+            ydl_opts.update({
+                'format': 'bestvideo*+bestaudio/best/best',
+            })
+        # SoundCloudは動画がないため音声保存に切り替え
+        if ('soundcloud.com' in domain) or ('sndcdn.com' in domain):
+            await ctx.send("SoundCloudは動画に非対応のため音声保存に切り替えます。")
+            target_dir = AUDIO_DIR
+            ext = "mp3"
+            ydl_opts = {
+                'quiet': True,
+                'no_warnings': True,
+                'noplaylist': True,
+                'format': 'bestaudio/best',
+                'outtmpl': f'{target_dir}/{filename}.%(ext)s',
+                'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192'}],
+            }
     elif param == "audio":
         target_dir = AUDIO_DIR
         ext = "mp3"
         ydl_opts = {
             'quiet': True,
+            'no_warnings': True,
+            'noplaylist': True,
             'format': 'bestaudio/best',
             'outtmpl': f'{target_dir}/{filename}.%(ext)s',
             'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192'}],
         }
+        # SoundCloudはそのまま音声扱いでOK
+        # Twitter/Xもbestaudioで抽出し、mp3へ変換
     else:
         await ctx.send("video または audio を指定してください。")
         return
@@ -536,15 +564,28 @@ async def play(ctx, url):
 
     async with ctx.typing():
         try:
-            ydl_opts = {"format": "bestaudio/best", "quiet": True, "noplaylist": True}
+            ydl_opts = {
+                "format": "bestaudio/best",
+                "quiet": True,
+                "noplaylist": True,
+                "extract_flat": False,
+                "no_warnings": True
+            }
             loop = asyncio.get_event_loop()
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
             
-            if "entries" in data: data = data["entries"][0]
+            if "entries" in data: 
+                data = data["entries"][0]
+            
+            # HTTPヘッダーを構築
+            headers = ""
+            if "http_headers" in data:
+                for key, value in data["http_headers"].items():
+                    headers += f"{key}: {value}\r\n"
             
             ffmpeg_opts = {
-                "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+                "before_options": f"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -headers {repr(headers)}",
                 "options": "-vn"
             }
             

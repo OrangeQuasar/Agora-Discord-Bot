@@ -1,7 +1,0 @@
-discord.py>=2.3.0
-requests
-pynacl
-yt_dlp
-pyyaml
-gTTS
-python-dotenv

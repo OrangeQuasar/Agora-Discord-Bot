@@ -23,8 +23,8 @@ VOICEVOXエンジンを利用して、テキストチャットの内容をボイ
 - **辞書登録**: 特殊な読み方をする単語を辞書に登録して、正しく読み上げさせることができます
 
 ### 🎵 メディア機能
-- **YouTubeの再生**: YouTubeなどのURLから音声を抽出してボイスチャンネルで再生
-- **動画・音声ダウンロード**: 指定したURLの動画や音声をサーバー上にダウンロード・保存できます
+- **再生対応サイト**: YouTube / SoundCloud / Twitter(X) のURLから音声を抽出してボイスチャンネルで再生
+- **動画・音声ダウンロード**: 指定したURLの動画や音声をサーバー上にダウンロード・保存（サイト別に最適な形式を選択）
 
 ---
 
@@ -40,7 +40,7 @@ VOICEVOXエンジンを利用して、テキストチャットの内容をボイ
 | コマンド | 説明 |
 |---------|------|
 | `!stop` | 再生中の音声を停止 |
-| `!play <url>` | YouTubeの音声を再生 |
+| `!play <url>` | YouTube / SoundCloud / Twitter(X) の音声を再生 |
 
 ### ユーザー設定
 | コマンド | 説明 |
@@ -58,7 +58,7 @@ VOICEVOXエンジンを利用して、テキストチャットの内容をボイ
 ### ダウンロード
 | コマンド | 説明 |
 |---------|------|
-| `!save <video\|audio> <url>` | YouTubeから動画または音声をダウンロード |
+| `!save <video\|audio> <url>` | YouTube / SoundCloud / Twitter(X) の動画・音声をダウンロード |
 
 ### その他
 | コマンド | 説明 |
@@ -67,23 +67,20 @@ VOICEVOXエンジンを利用して、テキストチャットの内容をボイ
 
 ---
 
-## 🚀 導入方法
+## 🚀 導入方法（Docker Compose）
 
 ### 前提条件
 - Docker / Docker Compose がインストールされていること
 - Discordの開発者ポータルでボットを作成済みであること
 - VOICEVOXエンジンが起動可能な環境
 
-### ステップ 1: 必要なファイルの準備
+### ステップ 1: 依存環境の確認
 
-以下の3つのファイルをリネームして、設定ファイルを作成します：
+- Docker / Docker Compose がインストールされていること
+- Discordの開発者ポータルでボットを作成済みであること
+- VOICEVOXエンジン（コンテナで同梱、別途インストール不要）
 
-```bash
-# ファイルをリネーム
-mv example_config.yaml config.yaml
-mv example_user_character.json user_character.json
-mv example_user_dict.json user_dict.json
-```
+このプロジェクトは Python 3.12 ベースのコンテナで動作し、依存関係は `uv` で管理されます（コンテナに同梱済み）。YouTube抽出のための JavaScript ランタイム（Node.js）もコンテナにインストールされます。
 
 ### ステップ 2: 設定ファイルの編集
 
@@ -96,7 +93,7 @@ character_map:
   ずんだもん: 3  # キャラクター名: VOICEVOXのキャラクターID
   四国めたん: 2
   # 他のキャラクターを追加...
-VOICEVOX_URL: http://voicevox:50021  # VOICEVOXエンジンのURL
+VOICEVOX_URL: http://voicevox:50021  # VOICEVOXエンジンのURL（composeのサービス名）
 audioplay: true  # 音声ファイル自動再生（true/false）
 maintenance_mode: false  # メンテナンスモード
 ```
@@ -118,12 +115,12 @@ maintenance_mode: false  # メンテナンスモード
    - `Speak`
 4. 生成されたURLをブラウザで開いて、Botをサーバーに追加
 
-### ステップ 4: ボットの起動
+### ステップ 3: ボットの起動
 
 プロジェクトディレクトリで以下のコマンドを実行：
 
 ```bash
-sudo docker compose up -d --build
+docker compose up -d --build
 ```
 
 ✅ ボットが起動しました！以降、サーバーの再起動時に自動的に起動されます。
@@ -131,7 +128,11 @@ sudo docker compose up -d --build
 ### ボットの停止
 
 ```bash
-sudo docker compose down
+docker compose down
+
+### 補足（任意設定）
+- Twitter(X)でログインが必要なメディアにアクセスする場合、Cookieの設定が必要になることがあります。その際は `yt-dlp` の CookieFile を使用する追加設定を検討してください（現状の機能では公開メディアに対して動作を想定）。
+- 開発用途でダウンロードファイルの共有URLを自動出力したい場合は、`.env` に共有ベースURL（例: `SHARE_AUDIO_URL` / `SHARE_VIDEO_URL`）を設定し、開発モードの取り扱いにご注意ください。
 ```
 
 ---
@@ -156,6 +157,18 @@ sudo docker compose down
 ```
 → 指定されたYouTubeの音声をボイスチャンネルで再生
 
+### SoundCloudから音声を再生
+```
+!play https://soundcloud.com/artist/track
+```
+→ SoundCloudの音声をボイスチャンネルで再生
+
+### Twitter(X)の動画を保存
+```
+!save video https://x.com/username/status/xxxxxxxxxxxxxx
+```
+→ 動画をmp4で保存（音声は `!save audio` でmp3保存）
+
 ---
 
 ## 🔧 トラブルシューティング
@@ -168,6 +181,7 @@ sudo docker compose down
 **Q: 音声が再生されない**
 - ✅ ボイスチャンネルの接続を確認
 - ✅ `!stop`で現在の再生を停止してから、もう一度試す
+- ✅ YouTubeで403になる場合、再度 `docker compose build` でコンテナを再ビルド（ヘッダー/Node.jsが最新化されます）
 
 **Q: 読み上げが変**
 - ✅ `!add <単語> <カタカナ読み>`で辞書に登録して正しく読ませる
